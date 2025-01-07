@@ -4,20 +4,21 @@ from pathlib import Path
 import yaml
 
 from src.utils.logger import logger
+from src.utils.path_finder import configs_path
 
 
 def read_yaml(path: Path) -> dict:
-    """_summary_
+    """Function to read a single YAML file
 
     Parameters
     ----------
     path : Path
-        _description_, by default configs_path
+        Input path for the yaml file
 
     Returns
     -------
-    dict
-        _description_
+    config: dict
+        Dictionary containing contents of a single YAML file
     """
     if not (path or path.exists()):
         logger.error("Invalid YAML path provided.")
@@ -34,7 +35,8 @@ def read_yaml(path: Path) -> dict:
 
 
 def read_all_yaml_dir(dir_path: Path = configs_path, exclude_list: list = None) -> dict:
-    """_summary_
+    """Function to read all the YAML files in a particular directory.
+    Can exclude specific files from output if required using a parameter
 
     Parameters
     ----------
@@ -46,7 +48,7 @@ def read_all_yaml_dir(dir_path: Path = configs_path, exclude_list: list = None) 
     Returns
     -------
     config_dict: dict
-        Dictionary containing all the config in the provided config_path
+        Dictionary containing all the configs in the provided config_path
     """
 
     # Create a list of yaml files in the given directory path
