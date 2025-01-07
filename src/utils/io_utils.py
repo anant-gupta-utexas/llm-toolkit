@@ -33,7 +33,7 @@ def read_yaml(path: Path) -> dict:
             logger.error(f"Error reading YAML file: {E}")
 
 
-def read_yaml_all_dir(dir_path: Path = configs_path, exclude_list: list = None) -> dict:
+def read_all_yaml_dir(dir_path: Path = configs_path, exclude_list: list = None) -> dict:
     """_summary_
 
     Parameters
