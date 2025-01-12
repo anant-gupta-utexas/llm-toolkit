@@ -1,12 +1,12 @@
 from src.utils.logger import logger
-from src.workflows.my_workflow import MyWorkflow
+from workflows.doc_qa import DocQA
 
 
 def main():
     logger.info("Starting the LLM application")
-    workflow = MyWorkflow()
-    task = "What is the capital of France? and what is 465 times 321 then add 95297 and then divide by 13.2?"
-    result = workflow.run_task(task)
+    workflow = DocQA()
+    task = "What is the treatment for severe headaches"
+    result = workflow(task)
     if result:
         logger.info(f"Task result: {result}")
     else:

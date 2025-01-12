@@ -2,7 +2,7 @@ from src.agents.my_agent import MyAgent
 from src.utils.logger import logger
 
 
-class MyWorkflow:
+class NewWorkflow:
     def __init__(self):
         self.agent = MyAgent()
 

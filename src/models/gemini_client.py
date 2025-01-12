@@ -1,3 +1,4 @@
+import json
 import os
 
 from adalflow.core.model_client import ModelClient
@@ -45,9 +46,20 @@ class GeminiClient(ModelClient):
 
     def parse_chat_completion(self, response):
         if response and response.text:
-            return GeneratorOutput(
-                data=response.text, error=None, raw_response=str(response)
-            )
+            try:
+                json_data = json.loads(
+                    response.text.replace("```json", "")
+                    .replace("```", "")
+                    .strip()
+                    .replace("\n", "")
+                )
+                return GeneratorOutput(data=json_data, error=None, raw_response="")
+            except json.JSONDecodeError as e:
+                return GeneratorOutput(
+                    data=None,
+                    error=f"JSON Decode Error: {e}",
+                    raw_response=str(response),
+                )
         else:
             return GeneratorOutput(
                 data=None,

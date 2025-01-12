@@ -12,11 +12,11 @@ class MyAgent:
         self.tools = []  # Add the tools your agent will use here
         self.model_client = GeminiClient()
         self.agent = ReActAgent(
-            tools=self.tools,
+            # tools=self.tools,
             model_client=self.model_client,  # Use the gemini client
             model_kwargs=self.configs[GEMINI_20_FLASH],  # Use gemini config
             max_steps=2,
-            add_llm_as_fallback=True,
+            add_llm_as_fallback=False,
         )
 
     def run(self, task):
