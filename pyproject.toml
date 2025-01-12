@@ -4,4 +4,9 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12.3"
-dependencies = []
+dependencies = [
+    "adalflow>=0.2.6",
+    "google-genai>=0.4.0",
+    "loguru>=0.7.3",
+    "pathlib>=1.0.1",
+]
