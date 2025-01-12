@@ -1,0 +1,3 @@
+# Model Provider Constants
+GEMINI_15_FLASH = "GEMINI_1.5_FLASH"
+GEMINI_20_FLASH = "GEMINI_2.0_FLASH"

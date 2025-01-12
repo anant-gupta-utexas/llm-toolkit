@@ -1,0 +1,8 @@
+GEMINI_1.5_FLASH: &gemini_base
+  model: gemini-1.5-flash
+  temperature: 0.0
+  max_output_tokens: 8192
+
+GEMINI_2.0_FLASH:
+  <<: *gemini_base
+  model: gemini-2.0-flash-exp
