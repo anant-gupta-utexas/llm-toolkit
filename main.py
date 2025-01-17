@@ -1,12 +1,14 @@
 from src.utils.logger import logger
-from workflows.doc_qa import DocQA
+from src.workflows.gemini_qa import GeminiQA
+from src.workflows.ollama_qa import OllamaQA
 
 
 def main():
     logger.info("Starting the LLM application")
-    workflow = DocQA()
-    task = "What is the treatment for severe headaches"
-    result = workflow(task)
+    gemini_task = GeminiQA()
+    ollam_task = OllamaQA()
+    task = "Helloooo from Mars"
+    result = ollam_task.call(query=task)
     if result:
         logger.info(f"Task result: {result}")
     else:

@@ -7,8 +7,11 @@ GEMINI_2.0_FLASH:
   <<: *gemini_base
   model: gemini-2.0-flash-exp
 
-OLLAMA_LLAMA3 :
+OLLAMA_LLAMA3.2:
   host: "http://localhost:11434"
-  model: "llama3"
-  temperature: 0.8
-  num_predict: 128
+  model: "llama3.2"
+  options:
+    temperature: 0.5
+    top_k: 40
+  num_predict: 8192
+  stream: False
