@@ -8,5 +8,6 @@ dependencies = [
     "adalflow>=0.2.6",
     "google-genai>=0.4.0",
     "loguru>=0.7.3",
+    "ollama>=0.4.5",
     "pathlib>=1.0.1",
 ]
