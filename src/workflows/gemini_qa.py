@@ -7,7 +7,7 @@ from src.utils.config_loader import ConfigLoader
 template_doc = r"""<SYS> You are a doctor </SYS> User: {{input_str}}"""
 
 
-class DocQA(Component):
+class GeminiQA(Component):
     def __init__(self):
         super().__init__()
         self.configs = ConfigLoader().get_configs()
