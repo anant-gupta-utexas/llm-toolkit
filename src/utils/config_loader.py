@@ -47,3 +47,6 @@ class ConfigLoader(object):
 
     def get_configs(self):
         return self._configs
+
+
+Config = ConfigLoader().get_configs()
