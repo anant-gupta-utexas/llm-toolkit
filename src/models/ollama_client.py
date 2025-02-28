@@ -6,14 +6,15 @@ from adalflow.core.types import EmbedderOutput, GeneratorOutput, ModelType
 from ollama import Client, GenerateResponse
 
 from src.config.constants import LLAMA_32
-from src.utils.config_loader import ConfigLoader
+from src.utils.config_loader import Config
 
 
 class OllamaClient(ModelClient):
+    # TODO: Check if we can import this directly as a class from AdalFLow, also add method to track usage
+
     def __init__(self):
         super().__init__()
-        self.configs = ConfigLoader().get_configs()
-        self.host = self.configs[LLAMA_32]["host"]
+        self.host = Config[LLAMA_32]["host"]
         self._sync_client = None
         self._async_client = None
 
