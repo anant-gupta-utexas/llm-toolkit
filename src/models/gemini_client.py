@@ -2,18 +2,17 @@ import json
 import os
 
 from adalflow.core.model_client import ModelClient
-from adalflow.core.types import GeneratorOutput, ModelType
+from adalflow.core.types import CompletionUsage, GeneratorOutput, ModelType
 from google import genai
-from google.genai import types
+from google.genai.types import GenerateContentConfig, GenerateContentResponse
 
-from src.config.constants import GEMINI_20_FLASH
-from src.utils.config_loader import ConfigLoader
+from src.utils.logger import logger
+from src.utils.timer import timer
 
 
 class GeminiClient(ModelClient):
     def __init__(self):
         super().__init__()
-        self.configs = ConfigLoader().get_configs()
         # Initialize the google-genai client
         self.client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
@@ -21,48 +20,51 @@ class GeminiClient(ModelClient):
         self, input, model_kwargs={}, model_type=ModelType.UNDEFINED
     ):
         if model_type == ModelType.LLM:
-            config = types.GenerateContentConfig(
+            config = GenerateContentConfig(
                 temperature=model_kwargs.get("temperature"),
                 max_output_tokens=model_kwargs.get("max_output_tokens"),
             )
             return {
-                "model": self.configs[GEMINI_20_FLASH]["model"],
+                "model": model_kwargs.get("model"),
                 "contents": input,
                 "config": config.__dict__,  # Convert to dict
             }
         else:
             raise ValueError(f"model_type {model_type} is not supported")
-
+    @timer
     def call(self, api_kwargs={}, model_type=ModelType.UNDEFINED):
         if model_type == ModelType.LLM:
             try:
                 response = self.client.models.generate_content(**api_kwargs)
                 return response
             except Exception as e:
-                print(f"Gemini API Error: {e}")
+                logger.error(f"Gemini API Error: {e}")
                 return None
         else:
             raise ValueError(f"model_type {model_type} is not supported")
 
-    def parse_chat_completion(self, response):
-        if response and response.text:
-            try:
-                json_data = json.loads(
-                    response.text.replace("```json", "")
-                    .replace("```", "")
-                    .strip()
-                    .replace("\n", "")
-                )
-                return GeneratorOutput(data=json_data, error=None, raw_response="")
-            except json.JSONDecodeError as e:
-                return GeneratorOutput(
-                    data=None,
-                    error=f"JSON Decode Error: {e}",
-                    raw_response=str(response),
-                )
-        else:
+    def parse_chat_completion(
+        self, completion: GenerateContentResponse
+    ) -> "GeneratorOutput":
+        """
+        Parse the completion to a structure your sytem standarizes. (here is str)
+        """
+        logger.debug(f"completion: {completion}")
+        try:
+            data = completion.text
+            usage = self.track_completion_usage(completion)
+            return GeneratorOutput(data=None, usage=usage, raw_response=data)
+        except Exception as e:
+            logger.error(f"Error parsing completion: {e}")
             return GeneratorOutput(
-                data=None,
-                error="No text in Gemini response",
-                raw_response=str(response),
+                data=None, error=str(e), raw_response=str(completion)
             )
+
+    def track_completion_usage(
+        self, completion: GenerateContentResponse
+    ) -> CompletionUsage:
+        return CompletionUsage(
+            completion_tokens=completion.usage_metadata.candidates_token_count,
+            prompt_tokens=completion.usage_metadata.prompt_token_count,
+            total_tokens=completion.usage_metadata.total_token_count,
+        )

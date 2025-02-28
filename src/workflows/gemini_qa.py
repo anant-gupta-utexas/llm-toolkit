@@ -17,4 +17,5 @@ class GeminiQA(Component):
         )
 
     def call(self, query: str) -> str:
-        return self.doc(prompt_kwargs={"input_str": query}).data
+        response = self.doc(prompt_kwargs={"input_str": query})
+        return response.data
