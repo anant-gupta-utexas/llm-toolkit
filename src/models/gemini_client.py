@@ -53,7 +53,9 @@ class GeminiClient(ModelClient):
         try:
             data = completion.text
             usage = self.track_completion_usage(completion)
-            return GeneratorOutput(data=None, usage=usage, raw_response=data)
+            return GeneratorOutput(
+                data=None, usage=usage, raw_response=data, metadata={"model": completion.model_version}
+            )
         except Exception as e:
             logger.error(f"Error parsing completion: {e}")
             return GeneratorOutput(
