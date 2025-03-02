@@ -18,6 +18,6 @@ class GeminiQA(Component):
             model_kwargs=Config[GEMINI_20_FLASH],
         )
 
-    def call(self, query: str) -> str:
-        response = self.doc(prompt_kwargs={"input_str": query})
+    def call(self, query: str, id: str = None) -> str:
+        response = self.doc(prompt_kwargs={"input_str": query}, id=id)
         return response.data
