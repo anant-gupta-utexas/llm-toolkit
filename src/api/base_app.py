@@ -1,7 +1,29 @@
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware import Middleware
 
-app = FastAPI()
+from src.api.middlewares.conv_id_middleware import ConvIdMiddleware
+from src.api.routers import tasks_router
+from src.observability.instrument import setup_tracing
+from src.utils.logger import logger
+
+
+async def lifespan(app: FastAPI):
+    """
+    Async lifespan function to manage the application's startup and shutdown.
+    Use this to perform any necessary setup or teardown tasks.
+
+    Args:
+        app: The FastAPI application instance.
+    """
+    logger.info("Starting up...")
+    yield
+    logger.info("Shutting down...")
+
+app = FastAPI(lifespan=lifespan)
+setup_tracing(app, enable_tracing=False)
 
 # --- CORS Configuration ---
 origins = [
@@ -17,6 +39,9 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all HTTP methods (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],  # Allows all headers.
 )
+app.add_middleware(ConvIdMiddleware)
+
+app.include_router(tasks_router.router)
 
 
 @app.get("/api/health", tags=["admin"])
