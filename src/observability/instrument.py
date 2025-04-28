@@ -1,94 +1,95 @@
-import base64
+import logging
 import os
+from urllib.parse import urljoin, urlparse  # Import urljoin
 
 from dotenv import load_dotenv
-from openinference.semconv.resource import ResourceAttributes
+
+# OpenTelemetry Imports
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from phoenix.otel import register
 
 from src.api.middlewares.conv_id_middleware import CONV_ID_ATTRIBUTE, CONV_ID_HEADER
 from src.utils.logger import logger
 
-# Configuration is picked up from your environment variables
-
-# tracer_provider = register()
-
-
+# Load environment variables - use override=True to ensure .env takes precedence
 load_dotenv(override=True)
 
-# LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY")
-# LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
-# LANGFUSE_OTEL_API = os.getenv("LANGFUSE_OTEL_API")
-
-# LANGFUSE_AUTH = base64.b64encode(
-#     f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()
-# ).decode()
-
-# os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {LANGFUSE_AUTH}"
-# os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = (
-#     f"Authorization=Basic {LANGFUSE_AUTH}"
-# )
-
+# Get relevant environment variables
 PHOENIX_API_KEY = os.getenv("PHOENIX_API_KEY")
-OTEL_EXPORTER_OTLP_HEADERS = os.getenv("OTEL_EXPORTER_OTLP_HEADERS")
-PHOENIX_COLLECTOR_ENDPOINT = os.getenv("PHOENIX_COLLECTOR_ENDPOINT")
+OTEL_EXPORTER_OTLP_HEADERS_STR = os.getenv(
+    "OTEL_EXPORTER_OTLP_HEADERS"
+)
+PHOENIX_COLLECTOR_ENDPOINT_URL = os.getenv(
+    "PHOENIX_COLLECTOR_ENDPOINT"
+)
 
-
-def setup_tracing(app, service_name: str = "llm-toolkit", enable_tracing: bool = True, tracing_name: str = __name__):
-    """Sets up OpenTelemetry tracing for the application.
-
-    Args:
-        app: The FastAPI application instance to instrument.
-        service_name: The name of the service, used for identifying the service in traces.
-        enable_tracing: A boolean flag to enable or disable tracing. Defaults to True.
-        tracing_name: The name of the tracer, typically the module name. Defaults to __name__.
-
-    Returns:
-        None
-    """
+def setup_tracing(
+    app,
+    service_name: str = "llm-toolkit",
+    enable_tracing: bool = True,
+    tracing_name: str = __name__,
+):
+    """Sets up OpenTelemetry tracing for the application."""
     try:
         if not enable_tracing:
             logger.info("OpenTelemetry tracing is disabled.")
             return
 
-        # Configure the resource
-        # resource = Resource(attributes={"service.name": service_name})
-        resource = Resource(attributes={ResourceAttributes.PROJECT_NAME: service_name})
+        if not PHOENIX_COLLECTOR_ENDPOINT_URL:
+            logger.error("PHOENIX_COLLECTOR_ENDPOINT environment variable is not set!")
+            return
 
-        # Configure the tracer provider
+        # Standard path for OTLP HTTP traces is /v1/traces
+        http_endpoint = urljoin(PHOENIX_COLLECTOR_ENDPOINT_URL, "v1/traces")
+
+        logger.info("Configuring OTLP HTTP exporter:")
+        logger.info(f"  HTTP Target URL: {http_endpoint}")
+
+        # The HTTP exporter expects headers as a dictionary {key: value}.
+        http_headers = {}
+        if OTEL_EXPORTER_OTLP_HEADERS_STR:
+            try:
+                for item in OTEL_EXPORTER_OTLP_HEADERS_STR.split(","):
+                    if "=" in item:
+                        key, value = item.strip().split("=", 1)
+                        http_headers[key.strip()] = value.strip()
+                if http_headers:
+                    logger.info(f"  Using Headers: {http_headers}")
+                else:
+                    logger.warning(
+                        "Could not parse OTEL_EXPORTER_OTLP_HEADERS into key-value pairs."
+                    )
+            except Exception as e:
+                logger.warning(f"Error parsing OTEL_EXPORTER_OTLP_HEADERS: {e}")
+        elif PHOENIX_API_KEY:
+            # Fallback or alternative: If only API key is provided, assume a standard header.
+            # Check Phoenix docs for the correct header name (e.g., 'x-api-key', 'authorization')
+            http_headers["api_key"] = PHOENIX_API_KEY
+            logger.info(f"  Using Headers from PHOENIX_API_KEY: {http_headers}")
+        else:
+            logger.info("  No headers configured for OTLP exporter.")
+
+        # --- Configure the OTLP HTTP Exporter ---
+        resource = Resource(attributes={"service.name": service_name})
         tracer_provider = TracerProvider(resource=resource)
-        trace.set_tracer_provider(tracer_provider)
-        tracer = trace.get_tracer(tracing_name)
-
-
-        # Configure the exporter
-        # otlp_exporter = OTLPSpanExporter(
-        #     endpoint=f"{LANGFUSE_OTEL_API}/v1/traces",
-        #     # headers={"Authorization": f"Basic {LANGFUSE_AUTH}"},
-        # )
-        endpoint = f"http://{PHOENIX_COLLECTOR_ENDPOINT}/v1/traces"
         otlp_exporter = OTLPSpanExporter(
-            endpoint=endpoint,
-            # insecure=True,
-            # headers={"authorization": f"{PHOENIX_API_KEY}"},
+            endpoint=http_endpoint,
+            headers=http_headers,  # Pass the headers dictionary
         )
-
-        # Configure the span processor
         span_processor = BatchSpanProcessor(otlp_exporter)
-        # tracer_provider.add_span_processor(span_processor)
-        # tracer = trace.get_tracer(__name__)
-
-        trace.get_tracer_provider().add_span_processor(span_processor)
+        tracer_provider.add_span_processor(span_processor)
+        trace.set_tracer_provider(tracer_provider)
 
         # Instrument FastAPI
-        FastAPIInstrumentor.instrument_app(app)
-        # FastAPIInstrumentor.instrument_app(app, http_capture_headers_server_request=["x-conversation-id"])
+        FastAPIInstrumentor.instrument_app(
+            app, http_capture_headers_server_request=["x-conversation-id"]
+        )
 
         logger.info("OpenTelemetry tracing initialized successfully.")
+
     except Exception as e:
-        logger.error(f"Error initializing OpenTelemetry tracing: {e}")
+        logger.error(f"Error initializing OpenTelemetry tracing: {e}", exc_info=True)
