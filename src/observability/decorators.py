@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import json
 import time
@@ -8,7 +9,7 @@ from opentelemetry.context import attach, detach, set_value
 from opentelemetry.trace import Span, get_current_span
 from pydantic import BaseModel
 
-from src.middleware.conv_id_middleware import CONV_ID_ATTRIBUTE
+from src.api.middlewares.conv_id_middleware import CONV_ID_ATTRIBUTE
 from src.utils.logger import logger
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -35,21 +36,27 @@ def serialize_pydantic_models(data: Any) -> str:
 
 
 def trace_external_call(name: str):
-    """
-    Decorator to trace external service calls using a new span.
-
-    Args:
-        name: The name of the external service being called.
-    """
-
     def decorator(func: F) -> F:
+        # ----> Check if the original function is async <----
+        is_async_func = asyncio.iscoroutinefunction(func)
+
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):  # The wrapper itself is async
             tracer = trace.get_tracer(__name__)
             parent_span = get_current_span()
-            conv_id = parent_span.attributes.get(CONV_ID_ATTRIBUTE)
-            context = set_value(CONV_ID_ATTRIBUTE, conv_id)
-            token = attach(context)
+
+            # Handle NonRecordingSpan safely
+            conv_id = None
+            if hasattr(parent_span, "attributes") and parent_span.attributes:
+                conv_id = parent_span.attributes.get(CONV_ID_ATTRIBUTE)
+            elif isinstance(parent_span, trace.Span) and parent_span.is_recording():
+                # Attempt to get context if it's a real span, though attributes might still be missing initially
+                # This part might need adjustment based on how context is propagated
+                pass  # Or try getting context differently if needed
+
+            context = set_value(CONV_ID_ATTRIBUTE, conv_id) if conv_id else None
+            token = attach(context) if context else None
+
             try:
                 with tracer.start_as_current_span(name) as span:
                     span.set_attribute("external_call", name)
@@ -66,7 +73,14 @@ def trace_external_call(name: str):
                         logger.warning(f"Could not set input attributes: {e}")
 
                     start_time = time.time()
-                    result = await func(*args, **kwargs)
+
+                    # ----> Conditionally await based on original function type <----
+                    if is_async_func:
+                        result = await func(*args, **kwargs)
+                    else:
+                        # Call the synchronous function directly
+                        result = func(*args, **kwargs)
+
                     end_time = time.time()
                     span.set_attribute("duration", end_time - start_time)
 
@@ -78,11 +92,20 @@ def trace_external_call(name: str):
 
                     return result
             except Exception as e:
-                logger.error(f"Error during external call to {name}: {e}")
-                raise
+                # Log the specific error happening during the call
+                logger.error(
+                    f"Error during external call to {name}: {e}", exc_info=True
+                )  # Add exc_info for full traceback
+                if span:  # Ensure span exists before setting status
+                    span.set_status(
+                        trace.Status(trace.StatusCode.ERROR, description=str(e))
+                    )
+                raise  # Re-raise the exception so FastAPI handles it
             finally:
-                detach(token)
+                if token:
+                    detach(token)
 
-        return wrapper
+        # ----> Return the correct type (async wrapper) <----
+        return wrapper  # The decorator always returns the async wrapper
 
     return decorator

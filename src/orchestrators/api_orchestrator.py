@@ -3,9 +3,11 @@ from uuid import uuid4
 from src.agents.my_agent import MyAgent
 from src.chains.gemini_qa import GeminiQA
 from src.chains.ollama_qa import OllamaQA
+from src.observability.decorators import trace_external_call
 from src.utils.logger import logger
 
 
+@trace_external_call("api_orchestrator")
 def ApiOrchestrator():
     logger.info("Starting the LLM application")
     gemini_task = GeminiQA()

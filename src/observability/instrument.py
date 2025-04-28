@@ -16,16 +16,23 @@ from src.utils.logger import logger
 
 # Configuration is picked up from your environment variables
 
+# tracer_provider = register()
 
-load_dotenv()
 
-LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY")
-LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
-LANGFUSE_OTEL_API = os.getenv("LANGFUSE_OTEL_API")
+load_dotenv(override=True)
 
-LANGFUSE_AUTH = base64.b64encode(
-    f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()
-).decode()
+# LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY")
+# LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
+# LANGFUSE_OTEL_API = os.getenv("LANGFUSE_OTEL_API")
+
+# LANGFUSE_AUTH = base64.b64encode(
+#     f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()
+# ).decode()
+
+# os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {LANGFUSE_AUTH}"
+# os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = (
+#     f"Authorization=Basic {LANGFUSE_AUTH}"
+# )
 
 PHOENIX_API_KEY = os.getenv("PHOENIX_API_KEY")
 OTEL_EXPORTER_OTLP_HEADERS = os.getenv("OTEL_EXPORTER_OTLP_HEADERS")
@@ -55,23 +62,28 @@ def setup_tracing(app, service_name: str = "llm-toolkit", enable_tracing: bool =
 
         # Configure the tracer provider
         tracer_provider = TracerProvider(resource=resource)
-
         trace.set_tracer_provider(tracer_provider)
+        tracer = trace.get_tracer(tracing_name)
+
 
         # Configure the exporter
         # otlp_exporter = OTLPSpanExporter(
         #     endpoint=f"{LANGFUSE_OTEL_API}/v1/traces",
-        #     headers={"Authorization": f"Basic {LANGFUSE_AUTH}"},
+        #     # headers={"Authorization": f"Basic {LANGFUSE_AUTH}"},
         # )
+        endpoint = f"http://{PHOENIX_COLLECTOR_ENDPOINT}/v1/traces"
         otlp_exporter = OTLPSpanExporter(
-            endpoint=f"{PHOENIX_COLLECTOR_ENDPOINT}/v1/traces",
-            headers={"authorization": f"{PHOENIX_API_KEY}"},
+            endpoint=endpoint,
+            # insecure=True,
+            # headers={"authorization": f"{PHOENIX_API_KEY}"},
         )
 
         # Configure the span processor
         span_processor = BatchSpanProcessor(otlp_exporter)
-        tracer_provider.add_span_processor(span_processor)
-        tracer = trace.get_tracer(__name__)
+        # tracer_provider.add_span_processor(span_processor)
+        # tracer = trace.get_tracer(__name__)
+
+        trace.get_tracer_provider().add_span_processor(span_processor)
 
         # Instrument FastAPI
         FastAPIInstrumentor.instrument_app(app)

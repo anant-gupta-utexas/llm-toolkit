@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down...")
 
 app = FastAPI(lifespan=lifespan)
-setup_tracing(app, enable_tracing=False)
+setup_tracing(app, enable_tracing=True)
 
 # --- CORS Configuration ---
 origins = [
