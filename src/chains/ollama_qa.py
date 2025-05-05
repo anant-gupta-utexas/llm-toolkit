@@ -1,7 +1,7 @@
 from adalflow.core import Component, Generator
 
 from src.config.constants import LLAMA_32
-from src.models.ollama_client import OllamaClient
+from src.providers.ollama_client import OllamaClient
 from src.utils.config_loader import Config
 
 template_doc = r"""<SYS> You are a philosopher </SYS> User: {{input_str}}"""

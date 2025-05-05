@@ -2,7 +2,7 @@ from adalflow.core import Component, Generator
 from adalflow.tracing import trace_generator_call, trace_generator_states
 
 from src.config.constants import GEMINI_20_FLASH
-from src.models.gemini_client import GeminiClient
+from src.providers.gemini_client import GeminiClient
 from src.utils.config_loader import Config
 
 template_doc = r"""<SYS> You are a doctor </SYS> User: {{input_str}}"""
