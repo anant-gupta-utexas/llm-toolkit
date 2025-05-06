@@ -1,10 +1,16 @@
 import json
 import os
+from typing import Any, Dict, List, Optional
 
 from adalflow.core.model_client import ModelClient
 from adalflow.core.types import CompletionUsage, GeneratorOutput, ModelType
 from google import genai
-from google.genai.types import GenerateContentConfig, GenerateContentResponse
+from google.genai.types import (
+    ContentDict,
+    GenerateContentConfig,
+    GenerateContentResponse,
+    Tool,
+)
 
 from src.utils.logger import logger
 from src.utils.timer import timer
@@ -16,6 +22,41 @@ class GeminiClient(ModelClient):
         # Initialize the google-genai client
         self.client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
+    def build_messages(
+        self,
+        user_message: str,
+        history: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+    ) -> List[ContentDict]:
+        """
+        Builds the message list in the format required by the Gemini API.
+
+        Args:
+            user_message: The latest message from the user.
+            history: The existing conversation history (list of {'role': str, 'content': str}).
+            system_prompt: An optional system prompt to prepend.
+
+        Returns:
+            A list of ContentDict suitable for the Gemini API 'contents' parameter.
+        """
+        gemini_messages: List[ContentDict] = []
+
+        # Gemini doesn't have a dedicated 'system' role like OpenAI.
+        # We often prepend system instructions as the first 'user' message
+        # followed by an empty 'model' response, or include it in the first user turn.
+        # Let's prepend it if provided.
+        if system_prompt:
+             # Simple approach: add as first user message
+             gemini_messages.append({'role': 'user', 'parts': [system_prompt]})
+             # Gemini requires alternating user/model roles, add dummy model response
+             gemini_messages.append({'role': 'model', 'parts': ["Okay, I understand the instructions."]})
+
+        for msg in history:
+            gemini_messages.append({'role': msg['role'], 'parts': [msg['content']]})
+
+        gemini_messages.append({'role': 'user', 'parts': [user_message]})
+        return gemini_messages
+
     def convert_inputs_to_api_kwargs(
         self, input, model_kwargs={}, model_type=ModelType.UNDEFINED
     ):
@@ -24,10 +65,13 @@ class GeminiClient(ModelClient):
                 temperature=model_kwargs.get("temperature"),
                 max_output_tokens=model_kwargs.get("max_output_tokens"),
             )
+
             return {
                 "model": model_kwargs.get("model"),
                 "contents": input,
                 "config": config.__dict__,  # Convert to dict
+                # TODO: Handle tools based on documentation
+                # "tools": model_kwargs.get("tools") # Pass tools if provided
             }
         else:
             raise ValueError(f"model_type {model_type} is not supported")
