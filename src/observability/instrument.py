@@ -85,9 +85,9 @@ def setup_tracing(
         trace.set_tracer_provider(tracer_provider)
 
         # Instrument FastAPI
-        FastAPIInstrumentor.instrument_app(
-            app, http_capture_headers_server_request=["x-conversation-id"]
-        )
+        # FastAPIInstrumentor.instrument_app(
+        #     app, http_capture_headers_server_request=["x-conversation-id"]
+        # )
 
         logger.info("OpenTelemetry tracing initialized successfully.")
 
