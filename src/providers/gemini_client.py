@@ -12,6 +12,17 @@ from google.genai.types import (
     Tool,
 )
 
+from src.providers.models import (
+    Content,
+    FunctionCall,
+    FunctionCallPart,
+    FunctionResponse,
+    FunctionResponsePart,
+    ImagePart,
+    MessageInput,
+    PartType,
+    TextPart,
+)
 from src.utils.logger import logger
 from src.utils.timer import timer
 
@@ -22,40 +33,58 @@ class GeminiClient(ModelClient):
         # Initialize the google-genai client
         self.client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-    def build_messages(
-        self,
-        user_message: str,
-        history: List[Dict[str, Any]],
-        system_prompt: Optional[str] = None,
-    ) -> List[ContentDict]:
+    def build_messages(inputs: List[MessageInput]) -> List[Content]:
         """
-        Builds the message list in the format required by the Gemini API.
+        Build messages from various input types for the Gemini API.
 
         Args:
-            user_message: The latest message from the user.
-            history: The existing conversation history (list of {'role': str, 'content': str}).
-            system_prompt: An optional system prompt to prepend.
+            inputs: List of MessageInput objects containing text, image, function calls, etc.
 
         Returns:
-            A list of ContentDict suitable for the Gemini API 'contents' parameter.
+            List of Content objects formatted for the Gemini API.
         """
-        gemini_messages: List[ContentDict] = []
+        contents = []
+        current_content = None
 
-        # Gemini doesn't have a dedicated 'system' role like OpenAI.
-        # We often prepend system instructions as the first 'user' message
-        # followed by an empty 'model' response, or include it in the first user turn.
-        # Let's prepend it if provided.
-        if system_prompt:
-             # Simple approach: add as first user message
-             gemini_messages.append({'role': 'user', 'parts': [system_prompt]})
-             # Gemini requires alternating user/model roles, add dummy model response
-             gemini_messages.append({'role': 'model', 'parts': ["Okay, I understand the instructions."]})
+        for input_item in inputs:
+            # Create a new Content object if the role changes
+            if not current_content or current_content.role != input_item.role:
+                if current_content:
+                    contents.append(current_content)
 
-        for msg in history:
-            gemini_messages.append({'role': msg['role'], 'parts': [msg['content']]})
+                current_content = Content(role=input_item.role, parts=[])
 
-        gemini_messages.append({'role': 'user', 'parts': [user_message]})
-        return gemini_messages
+            # Add parts based on the input type
+            if input_item.text:
+                current_content.parts.append(TextPart(text=input_item.text))
+
+            if input_item.image_uri and input_item.image_mime_type:
+                current_content.parts.append(
+                    ImagePart(
+                        uri=input_item.image_uri,
+                        mime_type=input_item.image_mime_type
+                    )
+                )
+
+            if input_item.function_call:
+                current_content.parts.append(
+                    FunctionCallPart(
+                        function_call=input_item.function_call
+                    )
+                )
+
+            if input_item.function_response:
+                current_content.parts.append(
+                    FunctionResponsePart(
+                        function_response=input_item.function_response
+                    )
+                )
+
+        # Add the last content if it exists
+        if current_content:
+            contents.append(current_content)
+
+        return contents
 
     def convert_inputs_to_api_kwargs(
         self, input, model_kwargs={}, model_type=ModelType.UNDEFINED
