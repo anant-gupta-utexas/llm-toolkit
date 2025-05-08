@@ -40,11 +40,9 @@ class ToolAgent(BaseAgent):
             try:
                 # Prepare tools in the format expected by your LLM provider (e.g., OpenAI format)
                 # This needs to be adapted based on self.llm_provider
-                formatted_tools = (
-                    None  # Replace with actual tool formatting logic if needed
-                )
-                llm_response = await self.llm_provider.generate(
-                    messages=self.conversation_history, tools=formatted_tools
+                # formatted_tools = None
+                llm_response = await self._get_llm_response(
+                    messages=self.conversation_history
                 )
                 # self._set_success_span(llm_span, result=llm_response) # If you created llm_span
             except Exception:
@@ -59,7 +57,7 @@ class ToolAgent(BaseAgent):
             response_content = message.get("content")
             tool_calls_raw = message.get(
                 "tool_calls"
-            )  # List of tool call dicts from LLM
+            )
 
             # Add LLM response (assistant message) to history
             self.conversation_history.append(message)  # Add the whole message dict

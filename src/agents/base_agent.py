@@ -33,6 +33,7 @@ class BaseAgent(abc.ABC):
         self,
         tools: Dict[str, Callable] = None,
         model_kwargs: Dict = Config[GEMINI_20_FLASH],
+        prompt_template: str = r"""<SYS> You are a philosopher, reply in abstract sentences. </SYS> User: {{input_str}}""",
         llm_client: ModelClient = GeminiClient(),
         conversation_history: Optional[List[Dict[str, Any]]] = None,
         memory_service: Optional[BaseMemory] = None,
@@ -42,7 +43,8 @@ class BaseAgent(abc.ABC):
         agent_name: str = "BaseAgent",
     ):
         self.tools = tools
-        self.model = model_kwargs
+        self.model_kwargs = model_kwargs
+        self.prompt_template = prompt_template
         self.llm_client = llm_client
         self.conversation_history = (
             conversation_history if conversation_history is not None else []
@@ -115,7 +117,6 @@ class BaseAgent(abc.ABC):
         Parses the JSON string arguments for a tool.
         Handles potential JSON decoding errors.
         """
-        span = self._create_span(f"parse_tool_arguments.{tool_name}")
         # --- Start Span ---
         span: Optional[Span] = None
         if self.enable_tracing and self._tracer:
@@ -339,7 +340,9 @@ class BaseAgent(abc.ABC):
         span: Optional[Span] = None
         if self.enable_tracing and self._tracer:
             attributes = self._get_common_span_attributes(input_value=input_repr)
-            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
+            attributes[SpanAttributes.LLM_MODEL_NAME] = self.model_kwargs.get("model")
+            attributes[SpanAttributes.INPUT_VALUE] = messages[0]  # Assuming the first message is the user input
             span = self._tracer.start_span(f"{self.agent_name}.llm_response", attributes=attributes)
         # --- End Span ---
         try:
@@ -349,18 +352,19 @@ class BaseAgent(abc.ABC):
             # Adjust the call signature based on your llm_client's actual requirements.
             # TODO: Check where to define the prompt template
             llm_provider = Generator(
-                template=prompt_template,
+                template=self.prompt_template,
                 model_client=self.llm_client,
-                model_kwargs=self.model,
+                model_kwargs=self.model_kwargs,
             )
 
             # TODO: Check if below call makes more sense or not, how to construct messages
-            # response = await llm_provider(prompt_kwargs={"input_str": messages}, id=id)
-            response = await llm_provider.call(input=messages)
+            response = llm_provider(prompt_kwargs={"input_str": messages[0]})
+            self._set_success_span(span, result=response)
+            # response = await llm_provider.call(input=messages)
 
             return response
         except Exception as e:
-            print(f"Error calling LLM: {e}")
+            logger.error(f"Error calling LLM: {e}", exc_info=True)
             self._set_error_span(span, e) # Mark span as error and end it
             raise # Re-raise the exception so the caller knows about the failure
 
@@ -405,7 +409,7 @@ class BaseAgent(abc.ABC):
             main_span: Optional[Span] = None
             if self.enable_tracing and self._tracer:
                 attributes = self._get_common_span_attributes(input_value=user_input)
-                attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT
+                attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
                 # conversation_id is already added in _get_common_span_attributes
                 main_span = self._tracer.start_span(f"{self.agent_name}.run", attributes=attributes)
 

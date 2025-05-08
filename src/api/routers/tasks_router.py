@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 @router.post("/test")
-async def test(request: None):
+async def test(request: str):
     result = await ApiOrchestrator()
     return {"result": result}
 
