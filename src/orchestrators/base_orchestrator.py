@@ -13,9 +13,9 @@ from src.utils.logger import logger
 
 class BaseOrchestrator:
     def __init__(self):
-        self._tool_registry: Dict[str, BaseTool] = {}  # Ideally Dict[str, BaseTool]
+        self._tool_registry: Dict[str, BaseTool] = {}
         self._chain_registry: Dict[str, BaseChain] = {}
-        self._agent_registry: Dict[str, BaseAgent] = {} # Ideally Dict[str, BaseAgent]
+        self._agent_registry: Dict[str, BaseAgent] = {}
         logger.info("BaseOrchestrator initialized with empty registries.")
 
     # --- Tool Registry Methods ---
@@ -46,6 +46,7 @@ class BaseOrchestrator:
             raise KeyError(f"Agent '{key}' not found.")
         return agent
 
+    # --- Chain Registry Methods ---
     def register_chain(self, key: str, chain_instance: BaseChain):
         """
         Registers a chain definition.
@@ -92,7 +93,7 @@ class BaseOrchestrator:
             The final output of the workflow.
         """
         logger.info(f"Executing workflow for chain '{chain_key}' with initial input: {str(initial_input)[:100]}...")
-        chain_to_execute = self.get_chain(chain_key)  # Fetches a BaseChain instance
+        chain_to_execute = self.get_chain(chain_key)
 
         if workflow_context is None:
             workflow_context = {}
