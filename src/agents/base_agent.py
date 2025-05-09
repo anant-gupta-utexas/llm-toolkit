@@ -38,7 +38,7 @@ class BaseAgent(abc.ABC):
         conversation_history: Optional[List[Dict[str, Any]]] = None,
         memory_service: Optional[BaseMemory] = None,
         max_iterations: int = 3,
-        max_tool_concurrency: int = 1,  # Default to sequential execution
+        max_tool_concurrency: int = 1,
         enable_tracing: bool = False,
         agent_name: str = "BaseAgent",
     ):
@@ -92,7 +92,7 @@ class BaseAgent(abc.ABC):
                     try:
                         value = json.dumps(value, default=str)
                     except Exception:
-                        value = str(value)  # Fallback to string representation
+                        value = str(value)
                 span.set_attribute(key, value)
 
     def _set_success_span(self, span: Optional[Span], result: Optional[Any] = None):
@@ -101,14 +101,14 @@ class BaseAgent(abc.ABC):
             if result is not None:
                 self._set_span_attributes(span, result=result)
             span.set_status(Status(StatusCode.OK))
-            span.end()  # End the span on success
+            span.end()
 
     def _set_error_span(self, span: Optional[Span], error: Exception):
         """Marks a span as failed (ERROR) if tracing is enabled."""
         if span and self.enable_tracing and span.is_recording():
             span.set_status(Status(StatusCode.ERROR, description=str(error)))
             span.record_exception(error)
-            span.end()  # End the span on error
+            span.end()
 
     def parse_tool_arguments(
         self, tool_name: str, tool_arguments_str: str
@@ -132,19 +132,19 @@ class BaseAgent(abc.ABC):
             return args
         except json.JSONDecodeError as e:
             error_msg = f"Error decoding JSON arguments for tool '{tool_name}': {e}. Input: '{tool_arguments_str}'"
-            print(f"Warning: {error_msg}")  # Or use logger
+            logger.error(f"Warning: {error_msg}")  # Or use logger
             self._set_error_span(span, e)
             raise ValueError(error_msg) from e  # Re-raise for handling
         except ValueError as e:
             error_msg = f"Argument validation error for tool '{tool_name}': {e}. Input: '{tool_arguments_str}'"
-            print(f"Warning: {error_msg}")  # Or use logger
+            logger.error(f"Warning: {error_msg}")  # Or use logger
             self._set_error_span(span, e)
             raise  # Re-raise for handling
 
     def handle_invalid_tool(self, tool_call: ToolCall) -> ToolResult:
         """Handles the case where the LLM requested a non-existent tool."""
         error_msg = f"Error: Tool '{tool_call.name}' not found."
-        print(f"Warning: {error_msg}")  # Or use logger
+        logger.warning(f"Warning: {error_msg}")  # Or use logger
         # --- Start Span ---
         span: Optional[Span] = None
         if self.enable_tracing and self._tracer:
@@ -212,7 +212,7 @@ class BaseAgent(abc.ABC):
             )
         except Exception as e:
             error_msg = f"Error executing tool '{tool_call.name}': {e}"
-            print(f"Error: {error_msg}")  # Or use logger
+            logger.error(f"Error: {error_msg}")  # Or use logger
             self._set_error_span(span, e)
             return ToolResult(
                 call_id=tool_call.id,
@@ -265,7 +265,6 @@ class BaseAgent(abc.ABC):
         # --- End Span ---
 
         try:
-            # Use return_exceptions=True to handle individual tool failures gracefully
             results_or_errors = await asyncio.gather(
                 *concurrent_tasks, return_exceptions=True
             )
@@ -276,7 +275,7 @@ class BaseAgent(abc.ABC):
                 original_call = tool_calls[i]
                 if isinstance(res_or_err, Exception):
                     error_msg = f"Unhandled exception during concurrent execution of tool '{original_call.name}': {res_or_err}"
-                    print(f"Error: {error_msg}")  # Or use logger
+                    logger.error(f"Error: {error_msg}")
                     # Create an error result
                     final_results.append(
                         ToolResult(
@@ -360,15 +359,13 @@ class BaseAgent(abc.ABC):
             # TODO: Check if below call makes more sense or not, how to construct messages
             response = llm_provider(prompt_kwargs={"input_str": messages[0]})
             self._set_success_span(span, result=response)
-            # response = await llm_provider.call(input=messages)
 
             return response
         except Exception as e:
             logger.error(f"Error calling LLM: {e}", exc_info=True)
-            self._set_error_span(span, e) # Mark span as error and end it
-            raise # Re-raise the exception so the caller knows about the failure
+            self._set_error_span(span, e)
+            raise
 
-        # Note: The span is ended by _set_success_span or _set_error_span
     @abc.abstractmethod
     async def _agent_loop(self, user_input: str) -> AgentResponse:
         """
@@ -404,7 +401,7 @@ class BaseAgent(abc.ABC):
                     )
                 except Exception as e:
                     logger.error(f"Failed to load history for {conv_id}: {e}")
-                    self.conversation_history = []  # Start fresh if loading fails
+                    self.conversation_history = []
 
             main_span: Optional[Span] = None
             if self.enable_tracing and self._tracer:
@@ -416,7 +413,6 @@ class BaseAgent(abc.ABC):
             try:
                 # Call the subclass's implementation of the agent loop
                 response = await self._agent_loop(user_input)
-                # Add final output using standard attribute
                 self._set_success_span(main_span, **{SpanAttributes.OUTPUT_VALUE: response.output})
 
                 if self.memory_service:
@@ -429,13 +425,12 @@ class BaseAgent(abc.ABC):
                 return response
 
             except Exception as e:
-                print(f"Error during agent run: {e}")  # Or use logger
+                logger.error(f"Error during agent run: {e}")  # Or use logger
                 self._set_error_span(main_span, e)
-                # Return a generic error response or re-raise
+
                 return AgentResponse(
                     output=f"An error occurred: {e}", intermediate_steps=[]
                 )
-                # raise # Optionally re-raise the exception
 
     async def __call__(
         self, user_input: str, conversation_id: Optional[str] = None

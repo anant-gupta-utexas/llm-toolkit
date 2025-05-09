@@ -53,16 +53,14 @@ class ToolAgent(BaseAgent):
 
             # 2. Parse LLM Response (Highly dependent on LLM provider output format)
             # Example structure assuming OpenAI-like response:
-            message = llm_response.get("choices", [{}])[0].get("message", {})
-            response_content = message.get("content")
-            tool_calls_raw = message.get(
-                "tool_calls"
-            )
+            agent_response = llm_response.raw_response
+            tool_calls_raw = llm_response.metadata.get("tool_calls_raw", None)
 
             # Add LLM response (assistant message) to history
-            self.conversation_history.append(message)  # Add the whole message dict
+            self.conversation_history.append(agent_response)  # Add the whole message dict
 
-            # 3. Check for Tool Calls
+            # TODO: Test the below flow, not thoroughly tested
+            # Check for Tool Calls
             if tool_calls_raw:
                 # Convert raw LLM tool calls to our ToolCall dataclass
                 tool_calls = [
@@ -87,7 +85,7 @@ class ToolAgent(BaseAgent):
                     {"type": "tool_results", "data": tool_results}
                 )
 
-                # 5. Add Tool Results to History (Format depends on LLM)
+                # Add Tool Results to History (Format depends on LLM)
                 # Example for OpenAI format:
                 for result in tool_results:
                     self.conversation_history.append(
@@ -107,7 +105,7 @@ class ToolAgent(BaseAgent):
                 # No tool calls, LLM provided final answer
                 return AgentResponse(
                     # End loop_span here before returning
-                    output=response_content or "No content received.",
+                    output=agent_response or "No content received.",
                     intermediate_steps=intermediate_steps,
                 )
 
