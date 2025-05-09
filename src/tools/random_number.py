@@ -20,7 +20,7 @@ class RandomNumberResponse(BaseModel):
     random_number: int = Field(..., description="The generated random integer.")
 
 
-class GenerateRandomNumberTool(BaseTool[RandomNumberRequest, RandomNumberResponse]):
+class RandomNumberTool(BaseTool[RandomNumberRequest, RandomNumberResponse]):
     name: str = "generate_random_number"
     description: str = "Generates a random integer between a specified minimum and maximum (inclusive)."
     request_model: Type[RandomNumberRequest] = RandomNumberRequest
