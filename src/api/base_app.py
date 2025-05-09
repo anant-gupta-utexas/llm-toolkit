@@ -2,11 +2,10 @@ import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware import Middleware
 
+from api.routers import mcp_router, workflows_router
 from src.api.middlewares.conv_id_middleware import ConvIdMiddleware
 from src.api.middlewares.tracing_middleware import TracingMiddleware
-from src.api.routers import tasks_router
 from src.observability.instrument import setup_tracing
 from src.utils.logger import logger
 
@@ -43,12 +42,12 @@ app.add_middleware(
 app.add_middleware(ConvIdMiddleware)
 app.add_middleware(
     TracingMiddleware,
-    # tracer_provider=tracer_provider, # Optionally pass your tracer_provider
     max_request_body_size=4096,  # Configure max body size for request
     max_response_body_size=4096,  # Configure max body size for response
 )
 
-app.include_router(tasks_router.router)
+app.include_router(workflows_router.router)
+app.include_router(mcp_router.router)
 
 
 @app.get("/api/health", tags=["admin"])
