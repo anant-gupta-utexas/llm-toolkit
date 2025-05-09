@@ -90,6 +90,7 @@ class GeminiClient(ModelClient):
         self, input, model_kwargs={}, model_type=ModelType.UNDEFINED
     ):
         if model_type == ModelType.LLM:
+            # TODO: Need to add response schema (enum / json) config here to GenerateContentConfig, also the tool need to be passed here
             config = GenerateContentConfig(
                 temperature=model_kwargs.get("temperature"),
                 max_output_tokens=model_kwargs.get("max_output_tokens"),
@@ -127,7 +128,14 @@ class GeminiClient(ModelClient):
             data = completion.text
             usage = self.track_completion_usage(completion)
             return GeneratorOutput(
-                data=None, usage=usage, raw_response=data, metadata={"model": completion.model_version}
+                data=None,
+                usage=usage,
+                raw_response=data,
+                metadata={
+                  "model": completion.model_version,
+                  "provide_responnse": completion,
+                  "tool_call": False
+                }
             )
         except Exception as e:
             logger.error(f"Error parsing completion: {e}")
