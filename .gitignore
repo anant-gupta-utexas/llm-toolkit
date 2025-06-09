@@ -12,3 +12,4 @@ traces/
 .python-version
 .codegpt
 .env
+.secrets
